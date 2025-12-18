@@ -1,0 +1,48 @@
+// parse the data (necessary for x-www-form-urlencode)
+				err := r.ParseForm()
+				if(err != nil){
+					http.Error(w,"Error parsing post request ",http.StatusBadRequest)
+				}
+				fmt.Println("Form ",r.Form)
+				
+				response := make(map[string]interface{})
+				for key,value := range r.Form{
+					response[key] = value[0]
+				}
+
+				fmt.Println("Processed Response ",response)
+				
+				// parse the json data or another type of data
+				body,err :=io.ReadAll(r.Body)
+				if err != nil{
+					return
+				}
+				defer r.Body.Close()
+
+				fmt.Println("Raw Body ",string(body))
+				var userInstance user
+				err = json.Unmarshal(body,&userInstance)
+				if(err != nil){
+					return
+				}
+
+				//Access the request details
+				fmt.Println("Body:",r.Body)
+				fmt.Println("Form:",r.Form)
+				fmt.Println("Header:",r.Header)
+				fmt.Println("Context:",r.Context())
+				fmt.Println("ConentLength:",r.ContentLength)
+				fmt.Println("Host:",r.Host)
+				fmt.Println("Method:",r.Method)
+				fmt.Println("Proto:",r.Proto)
+				fmt.Println("Remote Addr:",r.RemoteAddr)
+				fmt.Println("Request URI:",r.RequestURI)
+				fmt.Println("TLS:",r.TLS)
+				fmt.Println("Trailer:",r.Trailer)
+				fmt.Println("Transer Encoding:",r.TransferEncoding)
+				fmt.Println("URL:",r.URL)
+				fmt.Println("User Agent:",r.UserAgent())
+				fmt.Println("Port:",r.URL.Port())
+				fmt.Println("URL Scheme:",r.URL.Scheme)
+
+				fmt.Println("json data ",userInstance)
