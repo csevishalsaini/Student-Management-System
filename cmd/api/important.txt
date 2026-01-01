@@ -46,3 +46,14 @@
 				fmt.Println("URL Scheme:",r.URL.Scheme)
 
 				fmt.Println("json data ",userInstance)
+
+fmt.Println(r.URL.Path)
+	path := strings.TrimPrefix(r.URL.Path,"/teachers/")
+	userID := strings.TrimSuffix(path,"/")
+	fmt.Println("The user id: ",userID)
+	queryParam := r.URL.Query()
+	fmt.Println("query is ",queryParam)
+	sortby:= queryParam.Get("sortby")
+	key := queryParam.Get("key")
+	sortorder := queryParam.Get("sortorder")
+	
