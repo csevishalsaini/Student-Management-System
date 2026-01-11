@@ -22,6 +22,7 @@ func GetTeachersHandler(w http.ResponseWriter, r *http.Request) {
 	// }
 
 	if err != nil{
+		http.Error(w,err.Error(),http.StatusInternalServerError)
 		return
 	}
 	response := struct {
@@ -43,11 +44,13 @@ func GetOneTeacherHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(idStr)
 
 	if err != nil {
-		fmt.Println(err)
+		http.Error(w,"Invalid Id",http.StatusBadRequest)
+		return
 	}
 
 	teacher, err := sqlconnect.GetTeacherById(id)
 	if err!=nil{
+		http.Error(w,err.Error(),http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "Application/json")
@@ -60,12 +63,13 @@ func AddTeachersHandler(w http.ResponseWriter, r *http.Request) {
 	var newTeachers []models.Teacher
 	err := json.NewDecoder(r.Body).Decode(&newTeachers)
 	if err != nil {
-		http.Error(w, "Invalid Input", http.StatusBadRequest)
+		http.Error(w, "Invalid Request Body", http.StatusBadRequest)
 		return
 	}
 
 	addedTeachers, err := sqlconnect.AddTeachersDbHandler(newTeachers)
 	if err != nil {
+		http.Error(w,err.Error(),http.StatusInternalServerError)
 		return
 	}
 
@@ -99,13 +103,13 @@ func UpdateTeachersHandler(w http.ResponseWriter, r *http.Request) {
 	err = json.NewDecoder(r.Body).Decode(&updatedTeacher)
 	if err!= nil{
 		log.Println(err)
-		http.Error(w,"unable to connect with database ",http.StatusInternalServerError)
+		http.Error(w,"Error to Decode json Data ",http.StatusInternalServerError)
 	}
 	fmt.Println(updatedTeacher)
 
 	updatedTeacherFromDb,err := sqlconnect.UpdateTeacher(id, updatedTeacher)
 	if err != nil {
-		log.Println(err)
+		http.Error(w,err.Error(),http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -126,7 +130,7 @@ func PatchTeachersHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := sqlconnect.PatchTeachers(updates)
 	if err != nil {
-		log.Println(err)
+		http.Error(w,"Error to connect with database ",http.StatusInternalServerError)
 		return
 	}
 
@@ -151,7 +155,7 @@ func PatchOneTeachersHandler(w http.ResponseWriter, r *http.Request) {
 
 	existingTeacher, err := sqlconnect.PatchOneTeacher(id, updated)
 	if err != nil {
-		log.Println(err)
+		http.Error(w,err.Error(),http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -169,9 +173,9 @@ func DeleteTeachersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deletedIds, err := sqlconnect.DeleteTeachers(w, ids)
+	deletedIds, err := sqlconnect.DeleteTeachers(ids)
 	if err != nil {
-		log.Println(err)
+		http.Error(w,err.Error(),http.StatusInternalServerError)
 		return
 	}
 
@@ -199,6 +203,7 @@ func DeleteOneTeacherHandler(w http.ResponseWriter, r *http.Request) {
 
 	err = sqlconnect.DeleteOneTeacher(id)
 	if err != nil {
+		http.Error(w,err.Error(),http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
