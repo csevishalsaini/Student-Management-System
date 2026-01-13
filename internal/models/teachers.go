@@ -1,10 +1,11 @@
 package models
 
 type Teacher struct {
-	ID        int    `json:"id"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`	
-	Email     string `json:"email"`
-	Class     string `json:"class"`
-	Subject   string `json:"subject"`
+	ID        int    `json:"id,omitempty" db:"id,omitempty" validate:"required"`
+	FirstName string `json:"first_name,omitempty" db:"first_name,omitempty" validate:"required"`
+	LastName  string `json:"last_name,omitempty" db:"last_name,omitempty" validate:"required"`
+	Email     string `json:"email,omitempty" db:"email,omitempty" validate:"required"`
+	Class     string `json:"class,omitempty" db:"class,omitempty" validate:"required"`
+	Subject   string `json:"subject,omitempty" db:"subject,omitempty" validate:"required"`
 }
+
