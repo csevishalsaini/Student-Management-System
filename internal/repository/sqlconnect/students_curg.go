@@ -315,6 +315,9 @@ func AddStudentsDBHandler(newStudents []models.Student) ([]models.Student, error
 		}
 		res, err := stmt.Exec(values...)
 		if err != nil {
+			if strings.Contains(err.Error(),"Cannot add or update a child row: a foreign key constraint fails (`school`.`students`, CONSTRAINT `students_ibfk_1` FOREIGN KEY (`class`) REFERENCES `teachers` (`class`))"){
+				return nil,utils.ErrorHandler(err,"class/class teacher does not exist")
+			}
 			return nil, utils.ErrorHandler(err, "error adding data")
 		}
 		lastID, err := res.LastInsertId()
