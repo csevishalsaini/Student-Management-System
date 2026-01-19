@@ -1,9 +1,9 @@
 package models
 
-type Students struct{
-	ID        int    `json:"id,omitempty"`
-	FirstName string `json:"first_name,omitempty"`
-	LastName  string `json:"last_name,omitempty"`	
-	Email     string `json:"email,omitempty"`
-	Class     string `json:"class,omitempty"`
+type Student struct {
+	ID        int    `json:"id,omitempty" db:"id,omitempty" validate:"required"`
+	FirstName string `json:"first_name,omitempty" db:"first_name,omitempty" validate:"required"`
+	LastName  string `json:"last_name,omitempty" db:"last_name,omitempty" validate:"required"`
+	Email     string `json:"email,omitempty" db:"email,omitempty" validate:"required"`
+	Class     string `json:"class,omitempty" db:"class,omitempty" validate:"required"`
 }

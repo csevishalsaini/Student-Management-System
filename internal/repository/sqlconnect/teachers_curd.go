@@ -3,7 +3,6 @@ package sqlconnect
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"net/http"
 	"reflect"
 	"restapi/internal/models"
@@ -296,7 +295,6 @@ func UpdateTeacher(id int, updatedTeacher models.Teacher) (models.Teacher, error
 	return updatedTeacher, nil
 }
 
-
 func AddTeachersDBHandler(newTeachers []models.Teacher) ([]models.Teacher, error) {
 	db, err := ConnectDb()
 	if err != nil {
@@ -306,7 +304,7 @@ func AddTeachersDBHandler(newTeachers []models.Teacher) ([]models.Teacher, error
 	defer db.Close()
 
 	// stmt, err := db.Prepare("INSERT INTO teachers (first_name, last_name, email, class, subject) VALUES (?,?,?,?,?)")
-	stmt, err := db.Prepare(GenerateInsertQuery("teachers", models.Teacher{}))
+	stmt, err := db.Prepare(utils.GenerateInsertQuery("teachers", models.Teacher{}))
 	if err != nil {
 		return nil, utils.ErrorHandler(err, "error adding data")
 	}
@@ -315,7 +313,7 @@ func AddTeachersDBHandler(newTeachers []models.Teacher) ([]models.Teacher, error
 	addedTeachers := make([]models.Teacher, len(newTeachers))
 	for i, newTeacher := range newTeachers {
 		// res, err := stmt.Exec(newTeacher.FirstName, newTeacher.LastName, newTeacher.Email, newTeacher.Class, newTeacher.Subject)
-		values := GetStructValues(newTeacher)
+		values := utils.GetStructValues(newTeacher)
 		res, err := stmt.Exec(values...)
 		if err != nil {
 			return nil, utils.ErrorHandler(err, "error adding data")
@@ -329,42 +327,6 @@ func AddTeachersDBHandler(newTeachers []models.Teacher) ([]models.Teacher, error
 	}
 	return addedTeachers, nil
 }
-
-func GenerateInsertQuery(tableName string, model interface{}) string {
-	modelType := reflect.TypeOf(model)
-	var columns, placeholders string
-	for i := 0; i < modelType.NumField(); i++ {
-		dbTag := modelType.Field(i).Tag.Get("db")
-		fmt.Println("dbTag:", dbTag)
-		dbTag = strings.TrimSuffix(dbTag, ",omitempty")
-		if dbTag != "" && dbTag != "id" { // skip the ID field if it's auto increment
-			if columns != "" {
-				columns += ", "
-				placeholders += ", "
-			}
-			columns += dbTag
-			placeholders += "?"
-
-		}
-	}
-	fmt.Printf("INSERT INTO %s (%s) VALUES (%s)\n", tableName, columns, placeholders)
-	return fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", tableName, columns, placeholders)
-}
-
-func GetStructValues(model interface{}) []interface{} {
-	modelValue := reflect.ValueOf(model)
-	modelType := modelValue.Type()
-	values := []interface{}{}
-	for i := 0; i < modelType.NumField(); i++ {
-		dbTag := modelType.Field(i).Tag.Get("db")
-		if dbTag != "" && dbTag != "id,omitempty" {
-			values = append(values, modelValue.Field(i).Interface())
-		}
-	}
-	log.Println("Values:", values)
-	return values
-}
-
 
 func GetTeacherById(id int) (models.Teacher, error) {
 	db, err := ConnectDb()
@@ -396,8 +358,8 @@ func GetTeachersDbOperation(teachers []models.Teacher, r *http.Request) ([]model
 
 	var args []interface{}
 	query := "SELECT *FROM TEACHERS WHERE 1=1"
-	query, args = addFilters(r, query, args)
-	query = addSorting(r, query)
+	query, args = utils.AddFilters(r, query, args)
+	query = utils.AddSorting(r, query)
 
 	// if(firstName != ""){
 	// 	query += " AND first_name = ?"
@@ -428,63 +390,5 @@ func GetTeachersDbOperation(teachers []models.Teacher, r *http.Request) ([]model
 	return teachers, nil
 }
 
-func addFilters(r *http.Request, query string, args []interface{}) (string, []interface{}) {
-	params := map[string]string{
-		"first_name": "first_name",
-		"last_name":  "last_name",
-		"email":      "email",
-		"class":      "class",
-		"subject":    "subject",
-	}
 
-	for param, dbField := range params {
-		value := r.URL.Query().Get(param)
-		if value != "" {
-			query += " AND " + dbField + " = ?"
-			args = append(args, value)
-		}
-	}
-	return query, args
-}
 
-func addSorting(r *http.Request, query string) string {
-	sortParams := r.URL.Query()["sortby"]
-
-	if len(sortParams) > 0 {
-
-		query += " ORDER BY"
-		for i, param := range sortParams {
-			parts := strings.Split(param, ":")
-			if len(parts) < 2 {
-				continue
-			}
-			field := parts[0]
-			order := parts[1]
-			if !isValidField(field) || !isValidOrder(order) {
-				continue
-			}
-			if i > 0 {
-				query += ","
-			}
-			query += " " + field + " " + order
-		}
-
-	}
-	return query
-}
-
-func isValidField(field string) bool {
-	validField := map[string]bool{
-		"first_name": true,
-		"last_name":  true,
-		"class":      true,
-		"subject":    true,
-		"email":      true,
-	}
-	return validField[field]
-
-}
-
-func isValidOrder(order string) bool {
-	return order == "asc" || order == "desc"
-}

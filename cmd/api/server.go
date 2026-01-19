@@ -15,6 +15,7 @@ import (
 )
 
 func main() {
+
 		err := godotenv.Load()
 		if(err != nil){
 			fmt.Println(err)
