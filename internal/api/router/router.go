@@ -20,7 +20,7 @@ func Router() *http.ServeMux {
 	mux.HandleFunc("DELETE /teachers/{id}", handlers.DeleteOneTeacherHandler)
 
 	mux.HandleFunc("GET /teachers/{id}/students",handlers.GetStudentByTeacherId)
-	mux.HandleFunc("GET /teachers/{id}/studentcount",handlers.AddStudentsHandler)
+	mux.HandleFunc("GET /teachers/{id}/studentcount",handlers.GetStudentCountByTeacherId)
 
 
 	mux.HandleFunc("GET /students/", handlers.GetStudentsHandler)
