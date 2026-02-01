@@ -32,7 +32,7 @@ func main() {
 
 	port := os.Getenv("API_PORT")
 
-	router := router.Router()
+	router := router.MainRouter()
 
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
