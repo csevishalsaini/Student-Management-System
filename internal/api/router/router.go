@@ -9,11 +9,7 @@ func MainRouter() *http.ServeMux {
 
 	mux.Handle("/students/", studentRouter())
 	mux.Handle("/teachers/", teacherRouter())
-
+	mux.Handle("/execs/", execsRouter())
 	return mux
-
-	// mux := http.NewServeMux()
-	// mux.HandleFunc("GET /", handlers.RootHandler)
-	// mux.HandleFunc("GET /execs/", handlers.ExecsHandler)
 
 }
