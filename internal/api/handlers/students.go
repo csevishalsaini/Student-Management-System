@@ -40,7 +40,7 @@ func GetStudentsHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func GetOneStudentHandler(w http.ResponseWriter, r *http.Request) {
+func GetOneExecsHandler(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	id, err := strconv.Atoi(idStr)
 
@@ -250,5 +250,24 @@ func DeleteOneStudentHandler(w http.ResponseWriter, r *http.Request) {
 		Id:     id,
 	}
 	json.NewEncoder(w).Encode(response)
+
+}
+
+func GetOneStudentHandler(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.Atoi(idStr)
+
+	if err != nil {
+		http.Error(w, "Invalid Id", http.StatusBadRequest)
+		return
+	}
+
+	student, err := sqlconnect.GetStudentById(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "Application/json")
+	json.NewEncoder(w).Encode(student)
 
 }
