@@ -10,6 +10,7 @@ import (
 	mw "restapi/internal/api/middleware"
 	"restapi/internal/api/router"
 	"restapi/internal/repository/sqlconnect"
+	"restapi/pkg/utils"
 
 	"github.com/joho/godotenv"
 )
@@ -18,7 +19,8 @@ func main() {
 
 		err := godotenv.Load()
 		if(err != nil){
-			fmt.Println(err)
+			utils.ErrorHandler(err, "")
+
 			return
 		}
 		_,err =sqlconnect.ConnectDb()

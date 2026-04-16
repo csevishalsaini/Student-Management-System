@@ -1,12 +1,21 @@
 package handlers
 
 import (
+	"crypto/subtle"
+	"database/sql"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"restapi/internal/models"
 	"restapi/internal/repository/sqlconnect"
+	"restapi/pkg/utils"
 	"strconv"
+	"strings"
+	"time"
+
+	"golang.org/x/crypto/argon2"
 )
 
 func GetExecsHandler(w http.ResponseWriter, r *http.Request) {
@@ -196,4 +205,115 @@ func DeleteOneExecHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewEncoder(w).Encode(response)
 
+}
+
+func LoginHandler(w http.ResponseWriter, r *http.Request) {
+	var req models.Exec
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	}
+
+	if req.Username == "" || req.Password == "" {
+		http.Error(w, "username and password are required ", http.StatusBadRequest)
+	}
+
+	db, err := sqlconnect.ConnectDb()
+	if err != nil {
+		utils.ErrorHandler(err, "error updating data ")
+		http.Error(w, "error connecting to database ", http.StatusBadRequest)
+		return
+	}
+	defer db.Close()
+
+	user := &models.Exec{}
+	err = db.QueryRow("SELECT id, first_name, last_name, email, username, password, inactive_status, role FROM execs WHERE username = ?", req.Username).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.Username, &user.Password, &user.InactiveStatus, &user.Role)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			utils.ErrorHandler(err, "user not found ")
+			http.Error(w, "user not found", http.StatusBadRequest)
+			return
+		}
+		http.Error(w, "database query error ", http.StatusBadRequest)
+		return
+	}
+
+	if user.InactiveStatus {
+		http.Error(w, "Account is incative", http.StatusForbidden)
+		return
+	}
+
+	parts := strings.Split(user.Password, ".")
+
+	if len(parts) != 2 {
+		utils.ErrorHandler(errors.New("Invalid Hash Format "), "Invalid encoded hash format")
+		http.Error(w, "invalid encoded hash format ", http.StatusForbidden)
+		return
+	}
+	saltBase64 := parts[0]
+	hashPasswordBase64 := parts[1]
+
+	salt, err := base64.StdEncoding.DecodeString(saltBase64)
+
+	if err != nil {
+		utils.ErrorHandler(errors.New("failed to decode salt"), "failed decode the salt")
+		http.Error(w, "failed to decode salt", http.StatusForbidden)
+		return
+	}
+
+	hashPassword, err := base64.StdEncoding.DecodeString(hashPasswordBase64)
+
+	if err != nil {
+		utils.ErrorHandler(errors.New("failed to decode hash"), "failed decode the hash")
+		http.Error(w, "failed to decode hash", http.StatusForbidden)
+		return
+	}
+
+	hash := argon2.IDKey([]byte(req.Password), salt, 1, 64*1024, 4, 32)
+
+	if len(hash) != len(hashPassword) {
+		utils.ErrorHandler(errors.New("incorrect password "), "incorrect Password")
+		http.Error(w, "incorrect password ", http.StatusUnauthorized)
+		return
+	}
+
+	if subtle.ConstantTimeCompare(hash, hashPassword) != 1 {
+		utils.ErrorHandler(errors.New("incorrect password "), "incorrect Password")
+		http.Error(w, "incorrect password ", http.StatusUnauthorized)
+		return
+	}
+
+	tokenString, err := utils.SignToken(user.ID, req.Username, user.Role)
+
+	if err != nil {
+		http.Error(w, "Could not process error ", http.StatusInternalServerError)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "Bearer",
+		Value:    tokenString,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		Expires:  time.Now().Add(24 * time.Hour),
+	})
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "test",
+		Value:    "testing",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		Expires:  time.Now().Add(24 * time.Hour),
+	})
+
+	response := struct {
+		Token string `json:"token"`
+	}{
+		Token: tokenString,
+	}
+
+	json.NewEncoder(w).Encode(response)
 }
