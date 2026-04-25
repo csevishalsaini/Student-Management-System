@@ -318,3 +318,21 @@ func GetExecsDbOperation(execs []models.Exec, r *http.Request) ([]models.Exec, e
 }
 
 
+func GetUserByUserName(username string) (*models.Exec, error) {
+	db, err := ConnectDb()
+	if err != nil {
+		return nil, utils.ErrorHandler(err, "internal error")
+	}
+	defer db.Close()
+
+	user := &models.Exec{}
+	err = db.QueryRow("SELECT id, first_name, last_name, email, username, password, inactive_status, role FROM execs WHERE username = ?", username).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.Username, &user.Password, &user.InactiveStatus, &user.Role)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, utils.ErrorHandler(err, "user not found ")
+		}
+		return nil, utils.ErrorHandler(err, "database query error")
+	}
+	return user, nil
+}

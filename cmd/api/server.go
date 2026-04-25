@@ -17,24 +17,24 @@ import (
 
 func main() {
 
-		err := godotenv.Load()
-		if(err != nil){
-			utils.ErrorHandler(err, "")
+	err := godotenv.Load()
+	if err != nil {
+		utils.ErrorHandler(err, "")
 
-			return
-		}
-		_,err =sqlconnect.ConnectDb()
-		if(err !=nil){
-			fmt.Println("Error------ ",err)
-			return
-		}
+		return
+	}
+	_, err = sqlconnect.ConnectDb()
+	if err != nil {
+		fmt.Println("Error------ ", err)
+		return
+	}
 
 	key := "key.pem"
 	cert := "cert.pem"
 
 	port := os.Getenv("API_PORT")
 
-	router := router.MainRouter()
+	
 
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
@@ -51,7 +51,10 @@ func main() {
 
 	// securemux := utils.ApplyMiddlewares(mux, mw.Hpp((hppOtions)), mw.Compression, mw.SecurityHeaders, mw.ResponseTimeMiddleware, r1.Middleware)
 	// securemux = mw.SecurityHeaders(mux)
-	securemux := mw.SecurityHeaders(router)
+	// securemux := mw.SecurityHeaders(router)
+	router := router.MainRouter()
+	jwtMiddleware := mw.MiddlewareExcludePaths(mw.JwtMiddleware,"/execs/login")
+	securemux := jwtMiddleware(mw.SecurityHeaders(router))
 
 	server := &http.Server{
 		Addr: port,

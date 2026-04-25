@@ -1,13 +1,16 @@
 package middlewares
 
-import "net/http"
+import (
+	"net/http"
+)
 
 func SecurityHeaders(next http.Handler) http.Handler {
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		// Disable DNS prefetching
 		w.Header().Set("X-DNS-Prefetch-Control", "off")
-		
+
 		// Prevent clickjacking
 		w.Header().Set("X-Frame-Options", "DENY")
 
@@ -45,11 +48,10 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Cross-Origin-Embedder-Policy", "require-corp")
 
 		// CORS headers
-		
+
 		// Browser permissions
 		w.Header().Set("Permissions-Policy", "geolocation=(self), microphone=()")
 
 		next.ServeHTTP(w, r)
 	})
 }
-
