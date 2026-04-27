@@ -47,13 +47,13 @@ func main() {
 	// 	CheckBody:                   true,
 	// 	CheckBodyOnlyForContentType: "application/x-www-form-urlencoded",
 	// 	Whitelist:                   []string{"name", "sortby", "sortorder"},
-	// }
+
 
 	// securemux := utils.ApplyMiddlewares(mux, mw.Hpp((hppOtions)), mw.Compression, mw.SecurityHeaders, mw.ResponseTimeMiddleware, r1.Middleware)
 	// securemux = mw.SecurityHeaders(mux)
 	// securemux := mw.SecurityHeaders(router)
 	router := router.MainRouter()
-	jwtMiddleware := mw.MiddlewareExcludePaths(mw.JwtMiddleware,"/execs/login","/execs/forgotpassword")
+	jwtMiddleware := mw.MiddlewareExcludePaths(mw.JwtMiddleware,"/execs/login","/execs/forgotpassword","/execs/resetpassword/reset")
 	securemux := jwtMiddleware(mw.SecurityHeaders(router))
 
 	server := &http.Server{
