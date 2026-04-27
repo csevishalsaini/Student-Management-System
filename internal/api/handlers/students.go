@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"restapi/internal/models"
 	"restapi/internal/repository/sqlconnect"
+	"restapi/pkg/utils"
 	"strconv"
 )
 
@@ -17,7 +18,10 @@ func GetStudentsHandler(w http.ResponseWriter, r *http.Request) {
 	// lastName := r.URL.Query().Get("last_name")
 
 	var students []models.Student
-	students, err := sqlconnect.GetStudentsDbOperation(students, r)
+
+	page, limit := utils.GetPaginationParam(r)
+
+	students, err,totalStudent := sqlconnect.GetStudentsDbOperation(students, r, page, limit)
 	// if shouldReturn {
 	// 	return
 	// }
@@ -27,18 +31,23 @@ func GetStudentsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response := struct {
-		Status string           `json:"status"`
-		Count  int              `json:"count"`
-		Data   []models.Student `json:"data`
+		Status   string           `json:"status"`
+		Count    int              `json:"count"`
+		Page     int              `json:"page"`
+		PageSize int              `json:"page_size"`
+		Data     []models.Student `json:"data"`
 	}{
-		Status: "success",
-		Count:  len(students),
-		Data:   students,
+		Status:   "success",
+		Count:    totalStudent,
+		Page:     page,
+		PageSize: limit,
+		Data:     students,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 
 }
+
 
 func GetOneExecsHandler(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")

@@ -349,19 +349,25 @@ func GetTeacherById(id int) (models.Teacher, error) {
 	return teacher, nil
 }
 
-func GetTeachersDbOperation(teachers []models.Teacher, r *http.Request) ([]models.Teacher, error) {
+func GetTeachersDbOperation(teachers []models.Teacher, r *http.Request, page, limit int) ([]models.Teacher, error, int) {
 
 	db, err := ConnectDb()
 	if err != nil {
 		// http.Error(w, "Error connecting to database ", http.StatusInternalServerError)
-		return nil, utils.ErrorHandler(err, "Error connecting to database ")
+		return nil, utils.ErrorHandler(err, "Error connecting to database "),0
 	}
 	defer db.Close()
 
 	var args []interface{}
 	query := "SELECT *FROM TEACHERS WHERE 1=1"
+	offset := (page-1)*limit
 	query, args = utils.AddFilters(r, query, args)
+	query += " LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
+
 	query = utils.AddSorting(r, query)
+
+
 
 	// if(firstName != ""){
 	// 	query += " AND first_name = ?"
@@ -375,7 +381,7 @@ func GetTeachersDbOperation(teachers []models.Teacher, r *http.Request) ([]model
 	rows, err := db.Query(query, args...)
 	if err != nil {
 		// http.Error(w, "Database Query Error ", http.StatusInternalServerError)
-		return nil, utils.ErrorHandler(err, "Database Query Error  ")
+		return nil, utils.ErrorHandler(err, "Database Query Error  "),0
 	}
 	defer rows.Close()
 
@@ -385,11 +391,18 @@ func GetTeachersDbOperation(teachers []models.Teacher, r *http.Request) ([]model
 		err = rows.Scan(&teacher.ID, &teacher.FirstName, &teacher.LastName, &teacher.Email, &teacher.Class, &teacher.Subject)
 		if err != nil {
 			// http.Error(w,"Error Scanning database ",http.StatusInternalServerError)
-			return nil, utils.ErrorHandler(err, "Error Scanning database ")
+			return nil, utils.ErrorHandler(err, "Error Scanning database "),0
 		}
 		teachers = append(teachers, teacher)
 	}
-	return teachers, nil
+
+	var totalTeachers int
+	err = db.QueryRow("SELECT COUNT(*) from teachers").Scan(&totalTeachers)
+	
+	if err != nil{
+		return nil,utils.ErrorHandler(err,""),0
+	}
+	return teachers, nil,totalTeachers
 }
 
 func GetStudentByTeacherIdDb(teacherID string, students []models.Student) ([]models.Student, error) {

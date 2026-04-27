@@ -128,26 +128,26 @@ func PatchOneStudent(id int, updated map[string]interface{}) (models.Student, er
 			existingStudent.Email = v.(string)
 		case "class":
 			existingStudent.Class = v.(string)
-		
-	}
 
-	studentVal := reflect.ValueOf(&existingStudent).Elem()
-	fmt.Println(studentVal, "  ,, ")
-	studentType := studentVal.Type()
+		}
 
-	for k, v := range updated {
-		for i := 0; i < studentVal.NumField(); i++ {
-			field := studentType.Field(i)
-			if field.Tag.Get("json") == k+",omitempty" {
-				fieldVal := studentVal.Field(i)
-				if fieldVal.CanSet() {
-					fieldVal.Set(
-						reflect.ValueOf(v).Convert(fieldVal.Type()),
-					)
+		studentVal := reflect.ValueOf(&existingStudent).Elem()
+		fmt.Println(studentVal, "  ,, ")
+		studentType := studentVal.Type()
+
+		for k, v := range updated {
+			for i := 0; i < studentVal.NumField(); i++ {
+				field := studentType.Field(i)
+				if field.Tag.Get("json") == k+",omitempty" {
+					fieldVal := studentVal.Field(i)
+					if fieldVal.CanSet() {
+						fieldVal.Set(
+							reflect.ValueOf(v).Convert(fieldVal.Type()),
+						)
+					}
 				}
 			}
 		}
-	}
 	}
 
 	_, err = db.Exec("UPDATE students SET first_name = ?, last_name = ?, email = ?, class = ? WHERE id = ? ", existingStudent.FirstName, existingStudent.LastName, existingStudent.Email, existingStudent.Class, existingStudent.ID)
@@ -310,13 +310,13 @@ func AddStudentsDBHandler(newStudents []models.Student) ([]models.Student, error
 	for i, newStudent := range newStudents {
 		// res, err := stmt.Exec(newStudent.FirstName, newStudent.LastName, newStudent.Email, newStudent.Class, newStudent.Subject)
 		values := utils.GetStructValues(newStudent)
-		for val :=range values{
+		for val := range values {
 			fmt.Println(val)
 		}
 		res, err := stmt.Exec(values...)
 		if err != nil {
-			if strings.Contains(err.Error(),"Cannot add or update a child row: a foreign key constraint fails (`school`.`students`, CONSTRAINT `students_ibfk_1` FOREIGN KEY (`class`) REFERENCES `teachers` (`class`))"){
-				return nil,utils.ErrorHandler(err,"class/class teacher does not exist")
+			if strings.Contains(err.Error(), "Cannot add or update a child row: a foreign key constraint fails (`school`.`students`, CONSTRAINT `students_ibfk_1` FOREIGN KEY (`class`) REFERENCES `teachers` (`class`))") {
+				return nil, utils.ErrorHandler(err, "class/class teacher does not exist")
 			}
 			return nil, utils.ErrorHandler(err, "error adding data")
 		}
@@ -349,18 +349,22 @@ func GetStudentById(id int) (models.Student, error) {
 	return student, nil
 }
 
-func GetStudentsDbOperation(students []models.Student, r *http.Request) ([]models.Student, error) {
+func GetStudentsDbOperation(students []models.Student, r *http.Request, page, limit int) ([]models.Student, error, int) {
 
 	db, err := ConnectDb()
 	if err != nil {
 		// http.Error(w, "Error connecting to database ", http.StatusInternalServerError)
-		return nil, utils.ErrorHandler(err, "Error connecting to database ")
+		return nil, utils.ErrorHandler(err, "Error connecting to database "), 0
 	}
 	defer db.Close()
 
 	var args []interface{}
 	query := "SELECT *FROM STUDENTS WHERE 1=1"
 	query, args = utils.AddFilters(r, query, args)
+
+	offset := (page - 1) * limit
+	query += " LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
 	query = utils.AddSorting(r, query)
 
 	// if(firstName != ""){
@@ -375,7 +379,7 @@ func GetStudentsDbOperation(students []models.Student, r *http.Request) ([]model
 	rows, err := db.Query(query, args...)
 	if err != nil {
 		// http.Error(w, "Database Query Error ", http.StatusInternalServerError)
-		return nil, utils.ErrorHandler(err, "Database Query Error  ")
+		return nil, utils.ErrorHandler(err, "Database Query Error  "), 0
 	}
 	defer rows.Close()
 
@@ -385,9 +389,15 @@ func GetStudentsDbOperation(students []models.Student, r *http.Request) ([]model
 		err = rows.Scan(&student.ID, &student.FirstName, &student.LastName, &student.Email, &student.Class)
 		if err != nil {
 			// http.Error(w,"Error Scanning database ",http.StatusInternalServerError)
-			return nil, utils.ErrorHandler(err, "Error Scanning database ")
+			return nil, utils.ErrorHandler(err, "Error Scanning database "), 0
 		}
 		students = append(students, student)
 	}
-	return students, nil
+	var totalStudents int
+	err = db.QueryRow("SELECT COUNT(*) FROM students").Scan(&totalStudents)
+
+	if err != nil {
+		return nil, utils.ErrorHandler(err, ""), 0
+	}
+	return students, nil, totalStudents
 }

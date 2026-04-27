@@ -2,18 +2,21 @@ package sqlconnect
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
-	"encoding/base64"
-	"errors"
+	"encoding/hex"
 	"fmt"
 	"net/http"
+	"os"
 	"reflect"
 	"restapi/internal/models"
+
 	"restapi/pkg/utils"
 	"strconv"
 	"strings"
+	"time"
 
-	"golang.org/x/crypto/argon2"
+	"github.com/go-mail/mail/v2"
 )
 
 func DeleteOneExec(id int) error {
@@ -223,22 +226,10 @@ func AddExecsDBHandler(newExecs []models.Exec) ([]models.Exec, error) {
 
 	addedExecs := make([]models.Exec, len(newExecs))
 	for i, newExec := range newExecs {
-
-		if newExec.Password == "" {
-			return nil, utils.ErrorHandler(errors.New("password is blank "), "Please enter password")
+		newExec.Password, err = utils.HashPassword(newExec.Password)
+		if err != nil {
+			return nil, utils.ErrorHandler(err, "error adding data")
 		}
-		salt := make([]byte, 16)
-		_,err := rand.Read(salt)
-
-		if err != nil{
-			return nil, utils.ErrorHandler(errors.New("failed to generate salt "), "error adding data")
-		}
-		hash := argon2.IDKey([]byte(newExec.Password), salt, 1, 64*1024, 4, 32)
-		saltBase64 := base64.StdEncoding.EncodeToString(salt)
-		hasBase64 := base64.StdEncoding.EncodeToString(hash)
-
-		encodeHash := fmt.Sprintf("%s.%s", saltBase64, hasBase64)
-		newExec.Password = encodeHash
 		values := utils.GetStructValues(newExec)
 		res, err := stmt.Exec(values...)
 		if err != nil {
@@ -273,12 +264,12 @@ func GetExecById(id int) (models.Exec, error) {
 	return exec, nil
 }
 
-func GetExecsDbOperation(execs []models.Exec, r *http.Request) ([]models.Exec, error) {
+func GetExecsDbOperation(execs []models.Exec, r *http.Request, page, limit int) ([]models.Exec, error,int) {
 
 	db, err := ConnectDb()
 	if err != nil {
 		// http.Error(w, "Error connecting to database ", http.StatusInternalServerError)
-		return nil, utils.ErrorHandler(err, "Error connecting to database ")
+		return nil, utils.ErrorHandler(err, "Error connecting to database "), 0
 	}
 	defer db.Close()
 
@@ -286,6 +277,9 @@ func GetExecsDbOperation(execs []models.Exec, r *http.Request) ([]models.Exec, e
 
 	query := "SELECT id, first_name, last_name, email, username, user_created_at,  inactive_status, role FROM EXECS WHERE 1=1"
 	query, args = utils.AddFilters(r, query, args)
+	offset := (page-1)*limit
+	query += " LIMIT ? OFFSET ?"
+args = append(args, limit, offset)
 	query = utils.AddSorting(r, query)
 
 	// if(firstName != ""){
@@ -300,7 +294,7 @@ func GetExecsDbOperation(execs []models.Exec, r *http.Request) ([]models.Exec, e
 	rows, err := db.Query(query, args...)
 	if err != nil {
 		// http.Error(w, "Database Query Error ", http.StatusInternalServerError)
-		return nil, utils.ErrorHandler(err, "Database Query Error  ")
+		return nil, utils.ErrorHandler(err, "Database Query Error  "),0
 	}
 	defer rows.Close()
 
@@ -310,13 +304,18 @@ func GetExecsDbOperation(execs []models.Exec, r *http.Request) ([]models.Exec, e
 		err = rows.Scan(&exec.ID, &exec.FirstName, &exec.LastName, &exec.Email, &exec.Username, &exec.UserCreatedAt, &exec.InactiveStatus, &exec.Role)
 		if err != nil {
 			// http.Error(w,"Error Scanning database ",http.StatusInternalServerError)
-			return nil, utils.ErrorHandler(err, "Error Scanning database ")
+			return nil, utils.ErrorHandler(err, "Error Scanning database "),0
 		}
 		execs = append(execs, exec)
 	}
-	return execs, nil
-}
 
+	var totalExecs int
+	err = db.QueryRow("SELECT COUNT(*) FROM execs").Scan(&totalExecs)
+	if err != nil{
+		return nil, utils.ErrorHandler(err,""), 0
+	}
+	return execs, nil, totalExecs
+}
 
 func GetUserByUserName(username string) (*models.Exec, error) {
 	db, err := ConnectDb()
@@ -335,4 +334,148 @@ func GetUserByUserName(username string) (*models.Exec, error) {
 		return nil, utils.ErrorHandler(err, "database query error")
 	}
 	return user, nil
+}
+
+func UpdatePasswordInDb(userId int, w http.ResponseWriter, req models.UpdatePasswordRequest) (string, error) {
+	db, err := ConnectDb()
+	if err != nil {
+		utils.ErrorHandler(err, "database connection error")
+		return "", err
+	}
+	defer db.Close()
+
+	var username string
+	var userpassword string
+	var role string
+
+	err = db.QueryRow("SELECT username, password, role FROM execs WHERE ID = ?", userId).Scan(&username, &userpassword, &role)
+
+	if err != nil {
+		http.Error(w, "User Not Found", http.StatusNotFound)
+		return "", err
+	}
+
+	err = utils.VerifyPassword(req.CurrentPassword, userpassword)
+	if err != nil {
+		http.Error(w, "The password you entered does not match the current password on file", http.StatusBadRequest)
+		return "", err
+	}
+
+	hashedPassword, err := utils.HashPassword(req.NewPassword)
+
+	if err != nil {
+		http.Error(w, "internal server errror", http.StatusInternalServerError)
+		return "", err
+	}
+
+	currentTime := time.Now().Format(time.RFC3339)
+
+	_, err = db.Exec("UPDATE execs SET password = ?, password_changed_at = ? WHERE id = ?", hashedPassword, currentTime, userId)
+
+	if err != nil {
+		utils.ErrorHandler(err, "failed to update the password")
+		return "", err
+	}
+
+	token, err := utils.SignToken(userId, username, role)
+	if err != nil {
+		utils.ErrorHandler(err, "password updated, Could not create token")
+		return "", err
+	}
+	return token, nil
+}
+
+func ForgotPasswordDbHandler(email string) error {
+	db, err := ConnectDb()
+	if err != nil {
+		return utils.ErrorHandler(err, "Internal Error")
+	}
+	defer db.Close()
+
+	var exec models.Exec
+	err = db.QueryRow("SELECT id FROM execs WHERE email = ?", email).Scan(&exec.ID)
+
+	if err != nil {
+		return utils.ErrorHandler(err, "User not found")
+	}
+
+	duration, err := strconv.Atoi(os.Getenv("RESET_TOKEN_EXP_DURATION"))
+	if err != nil {
+		
+		return utils.ErrorHandler(err, "Failed to send password reset email")
+	}
+
+	mins := time.Duration(duration)
+	expiry := time.Now().Add(mins * time.Minute).Format(time.RFC3339)
+
+	tokenBytes := make([]byte, 32)
+	_, err = rand.Read(tokenBytes)
+
+	if err != nil {
+		utils.ErrorHandler(err, "Failed to send password reset email")
+	}
+
+	token := hex.EncodeToString(tokenBytes)
+
+	hashedToken := sha256.Sum256(tokenBytes)
+	hashedTokenStr := hex.EncodeToString(hashedToken[:])
+
+	_, err = db.Exec("UPDATE execs SET password_reset_token = ?, password_token_expires = ? WHERE id = ?", hashedTokenStr, expiry, exec.ID)
+
+	if err != nil {
+		return utils.ErrorHandler(err, "Failed to send password reset token")
+	}
+
+	resetURL := fmt.Sprintf("https://localhost:3000/execs/resetpassword/reset/%s", token)
+	message := fmt.Sprintf("Forgot your password? Reset your password using the following link: \n %s \n If you didn't request a password reset, please ignore this email. This link is only valid for %d minutes", resetURL, int(duration))
+
+	m := mail.NewMessage()
+	m.SetHeader("From", "who.imvishal@gmail.com")
+	m.SetHeader("TO", email)
+	m.SetHeader("Subject", "Your Password reset link")
+	m.SetBody("text/plain", message)
+
+	d := mail.NewDialer("localhost", 1025, "", "")
+	err = d.DialAndSend(m)
+
+	if err != nil {
+		return utils.ErrorHandler(err, "Failed to send password reset email")
+	}
+	return nil
+}
+
+
+func ResetPasswordDbHandler(hashedTokenString string, req models.Request) error {
+	db, err := ConnectDb()
+
+	if err != nil {
+		utils.ErrorHandler(err, "Internal Error")
+		return err
+	}
+	defer db.Close()
+
+	var user models.Exec
+	query := "SELECT id, email FROM execs WHERE password_reset_token = ? AND password_token_expires > ?"
+	err = db.QueryRow(query, hashedTokenString, time.Now().Format(time.RFC3339)).Scan(&user.ID, &user.Email)
+
+	if err != nil {
+		utils.ErrorHandler(err, "Invalid or expired reset code")
+		return err
+	}
+
+	hashPassword, err := utils.HashPassword(req.NewPassword)
+
+	if err != nil {
+		utils.ErrorHandler(err, "Internal error")
+		return err
+	}
+
+	updateQuery := "UPDATE execs SET password = ?, password_reset_token = NULL, password_token_expires = NULL, password_changed_at = ? WHERE id = ?"
+	_, err = db.Exec(updateQuery, hashPassword, time.Now().Format(time.RFC3339), user.ID)
+
+	if err != nil {
+		utils.ErrorHandler(err, "Internal error ")
+		return err
+	}
+	return nil
 }
