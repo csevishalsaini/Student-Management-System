@@ -9,8 +9,8 @@ func execsRouter() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /execs/", handlers.GetExecsHandler)
-	mux.HandleFunc("POST /execs/", handlers.AddExecsHandler)
-	mux.HandleFunc("PATCH /execs/", handlers.PatchExecsHandler)
+	mux.HandleFunc("POST /execs", handlers.AddExecsHandler)
+	mux.HandleFunc("PATCH /execs", handlers.PatchExecsHandler)
 
 	mux.HandleFunc("GET /execs/{id}", handlers.GetOneExecHandler)
 	mux.HandleFunc("PATCH /execs/{id}", handlers.PatchOneExecsHandler)

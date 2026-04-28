@@ -213,10 +213,12 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
 	}
 
 	if req.Username == "" || req.Password == "" {
 		http.Error(w, "username and password are required ", http.StatusBadRequest)
+		return
 	}
 
 	user, err := sqlconnect.GetUserByUserName(req.Username)

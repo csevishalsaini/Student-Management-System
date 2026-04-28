@@ -442,6 +442,7 @@ func GetStudentByTeacherIdDb(teacherID string, students []models.Student) ([]mod
 }
 
 func GetStudentCountByTeacherIddb(id string) (int, error) {
+
 	db, err := ConnectDb()
 	if err != nil {
 		log.Println(err)
@@ -451,10 +452,11 @@ func GetStudentCountByTeacherIddb(id string) (int, error) {
 	defer db.Close()
 	var studentCount int
 	query := `SELECT COUNT(*) FROM students where class = (SELECT class FROM teachers where id = ?)`
-
+	fmt.Println("Came here ")
 	err = db.QueryRow(query, id).Scan(&studentCount)
 	if err != nil {
 		return 0, utils.ErrorHandler(err, "Error retrieving data")
 	}
+	
 	return studentCount, nil
 }

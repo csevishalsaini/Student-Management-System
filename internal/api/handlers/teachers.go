@@ -19,7 +19,7 @@ func GetTeachersHandler(w http.ResponseWriter, r *http.Request) {
 
 	var teachers []models.Teacher
 	page, limit := utils.GetPaginationParam(r)
-	teachers, err,totalTeachers := sqlconnect.GetTeachersDbOperation(teachers, r,page,limit)
+	teachers, err, totalTeachers := sqlconnect.GetTeachersDbOperation(teachers, r, page, limit)
 	// if shouldReturn {
 	// 	return
 	// }
@@ -31,23 +31,20 @@ func GetTeachersHandler(w http.ResponseWriter, r *http.Request) {
 	response := struct {
 		Status string           `json:"status"`
 		Count  int              `json:"count"`
-		Page int								`json:"page"`
-		Limit int 							`json:"limit"`
+		Page   int              `json:"page"`
+		Limit  int              `json:"limit"`
 		Data   []models.Teacher `json:"data"`
 	}{
 		Status: "success",
 		Count:  totalTeachers,
-		Page: page,
-		Limit: limit,
+		Page:   page,
+		Limit:  limit,
 		Data:   teachers,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 
 }
-
-
-
 
 func GetOneTeacherHandler(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
@@ -226,7 +223,7 @@ func DeleteTeachersHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	response := struct {
-		Status     string `json:status`
+		Status     string `json:"status"`
 		DeletedIds []int
 	}{
 		Status:     "Teachers successfully",
@@ -288,9 +285,24 @@ func GetStudentByTeacherId(w http.ResponseWriter, r *http.Request) {
 func GetStudentCountByTeacherId(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
+	roleVal := r.Context().Value(utils.ContextKey("role"))
+
+	userRole, ok := roleVal.(string)
+	if !ok {
+		http.Error(w, "role not found in context", http.StatusUnauthorized)
+		return
+	}
+
+	_, err := utils.AuthorizeUser(userRole, "manager","exec","admin") 
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
 	studentCount, err := sqlconnect.GetStudentCountByTeacherIddb(id)
 	if err != nil {
-		http.Error(w,err.Error(),http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	response := struct {
@@ -303,4 +315,3 @@ func GetStudentCountByTeacherId(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
-

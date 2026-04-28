@@ -19,6 +19,8 @@ func GetStudentsHandler(w http.ResponseWriter, r *http.Request) {
 
 	var students []models.Student
 
+	
+
 	page, limit := utils.GetPaginationParam(r)
 
 	students, err,totalStudent := sqlconnect.GetStudentsDbOperation(students, r, page, limit)
